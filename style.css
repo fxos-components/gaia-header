@@ -26,7 +26,7 @@ gaia-header[hidden] {
 .inner {
   display: flex;
   min-height: 50px;
-  background: var(--header-background, #fff);
+  background: var(--header-background, #F97C17);
 }
 
 /** Action Button
@@ -43,7 +43,7 @@ gaia-header[hidden] {
   width: 50px;
   font-size: 30px;
   border: none;
-  color: var(--header-nav-button-color, #000);
+  color: var(--header-nav-button-color, #fff);
 }
 
 /**
@@ -114,7 +114,7 @@ gaia-header[hidden] {
   font-weight: 300;
   font-style: italic;
   font-size: 24px;
-  color: var(--header-title-color, #000);
+  color: var(--header-title-color, #fff);
 }
 
 .-content h1:active {
@@ -168,7 +168,7 @@ button,
   text-align: center;
   background: none;
   border-radius: 0;
-  color: var(--header-button-color, #000);
+  color: var(--header-button-color, #fff);
   font-style: italic;
   transition: var(--button-transition);
 }
@@ -230,7 +230,7 @@ button:hover,
 
 .-content .icon,
 .-content [data-icon] {
-  color: var(--header-nav-button-color, #000);
+  color: var(--header-nav-button-color, #fff);
 }
 
 /** Icons
