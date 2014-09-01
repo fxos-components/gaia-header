@@ -193,6 +193,16 @@ button.active,
 }
 
 /**
+ * :hover
+ */
+a:hover,
+button:hover,
+.-content a:hover,
+.-content button:hover {
+  background-color: rgba(0, 0, 0, 0.07);
+}
+
+/**
  * [hidden]
  */
 
