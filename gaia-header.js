@@ -62,9 +62,8 @@ proto.createdCallback = function() {
   this.els.actionButton.addEventListener('click', this.onActionButtonClick);
   this.setupInteractionListeners();
   this.configureActionButton();
-  this.shadowStyleHack();
+  shadowStyleHack(this);
   this.runFontFit();
-  this.setupRtl();
 };
 
 /**
@@ -76,111 +75,6 @@ proto.createdCallback = function() {
 proto.attachedCallback = function() {
   this.restyleShadowDom();
   this.rerunFontFit();
-  this.setupRtl();
-};
-
-/**
- * Called when the element is detached
- * (removed) from the DOM.
- *
- * @private
- */
-proto.detachedCallback = function() {
-  this.teardownRtl();
-};
-
-/**
- * Sets up mutation observes to listen for
- * 'dir' attribute changes on <html> and
- * runs the initial configuration.
- *
- * Although the `dir` attribute should
- * be able to be placed on any ancestor
- * node, we are currently only supporting
- * <html>. This is to keep the logic
- * simple and compatible with mozL10n.js.
- *
- * We could walk up the DOM and attach
- * a mutation observer to the nearest
- * ancestor with a `dir` attribute,
- * but then things start to get messy
- * and complex for little gain.
- *
- * We re-run font-fit to make sure
- * the heading is re-positioned after
- * the buttons switch around. We could
- * potentially let the font-fit observer
- * catch the `textContent` change that
- * *may* happen after a language change,
- * but that's only if the heading has
- * been localized.
- *
- * Once `:host-context()` selector lands
- * (bug 1082060) we may be able to reconsider
- * this implementation. But even then, we would
- * need a way to re-run font-fit.
- *
- * @private
- */
-proto.setupRtl = function() {
-  if (this.observerRtl) { return; }
-
-  var self = this;
-  this.observerRtl = new MutationObserver(onAttributeChanged);
-  this.observerRtl.observe(document.documentElement, { attributes: true });
-  this.configureRtl();
-
-  function onAttributeChanged(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.attributeName !== 'dir') { return; }
-      this.configureRtl();
-      this.rerunFontFit();
-    }, self);
-  }
-};
-
-/**
- * Stop the mutation observer.
- *
- * @private
- */
-proto.teardownRtl = function() {
-  if (!this.observerRtl) { return; }
-  this.observerRtl.disconnect();
-  this.observerRtl = null;
-};
-
-/**
- * Syncs the inner's 'dir' attribute
- * with the one on <html> .
- *
- * @private
- */
-proto.configureRtl = function() {
-  var value = document.documentElement.getAttribute('dir') || 'ltr';
-  if (value) this.els.inner.setAttribute('dir', value);
-};
-
-/**
- * The Gecko platform doesn't yet have
- * `::content` or `:host`, selectors,
- * without these we are unable to style
- * user-content in the light-dom from
- * within our shadow-dom style-sheet.
- *
- * To workaround this, we clone the <style>
- * node into the root of the component,
- * so our selectors are able to target
- * light-dom content.
- *
- * @private
- */
-proto.shadowStyleHack = function() {
-  if (hasShadowCSS) { return; }
-  var style = this.shadowRoot.querySelector('style').cloneNode(true);
-  this.classList.add('-content', '-host');
-  style.setAttribute('scoped', '');
-  this.appendChild(style);
 };
 
 /**
@@ -233,7 +127,7 @@ proto.rerunFontFit = function() {
 proto.attributeChangedCallback = function(attr, oldVal, newVal) {
   if (attr === 'action') {
     this.configureActionButton();
-    fontFit.reformatHeading(this._heading);
+    this.rerunFontFit();
   }
 };
 
@@ -312,17 +206,6 @@ proto.setupInteractionListeners = function() {
   pressed(this.els.inner, { scope: this, instant: true });
 };
 
-// HACK: Create a <template> in memory at runtime.
-// When the custom-element is created we clone
-// this template and inject into the shadow-root.
-// Prior to this we would have had to copy/paste
-// the template into the <head> of every app that
-// wanted to use <gaia-header>, this would make
-// markup changes complicated, and could lead to
-// things getting out of sync. This is a short-term
-// hack until we can import entire custom-elements
-// using HTML Imports (bug 877072).
-
 var template = `
 <style>
 
@@ -340,7 +223,7 @@ var template = `
  * [hidden]
  */
 
-gaia-header[hidden] {
+:host[hidden] {
   display: none;
 }
 
@@ -355,6 +238,7 @@ gaia-header[hidden] {
 .inner {
   display: flex;
   min-height: 50px;
+  direction: ltr;
 
   background:
     var(--header-background,
@@ -372,10 +256,14 @@ gaia-header[hidden] {
 .action-button {
   display: none; /* 1 */
   position: relative;
-  align-items: center;
   width: 50px;
   font-size: 30px;
-  border: none;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  background: none;
+  cursor: pointer;
+  border: 0;
 
   color:
     var(--header-action-button-color,
@@ -391,6 +279,32 @@ gaia-header[hidden] {
 
 .supported-action .action-button {
   display: flex; /* 1 */
+}
+
+/**
+ * .pressed
+ *
+ * The pressed.js library adds a 'pressed'
+ * class which we use instead of :active,
+ * to give us more control over
+ * interaction styling.
+ */
+
+.action-button.pressed {
+  opacity: 0.2;
+}
+
+/**
+ * .released
+ *
+ * The pressed.js library adds a 'released'
+ * class for a few ms after the finger
+ * leaves the button. This allows us
+ * to style touchend interactions.
+ */
+
+.action-button.released {
+  transition: opacity 200ms;
 }
 
 /** Action Button Icon
@@ -487,8 +401,6 @@ gaia-header[hidden] {
 /** Buttons
  ---------------------------------------------------------*/
 
-a,
-button,
 ::content a,
 ::content button {
   box-sizing: border-box;
@@ -508,6 +420,7 @@ button,
   background: none;
   border-radius: 0;
   font-style: italic;
+  cursor: pointer;
 
   color:
     var(--gaia-header-button-color);
@@ -522,8 +435,6 @@ button,
  * interaction styling.
  */
 
-a.pressed,
-button.pressed,
 ::content a.pressed,
 ::content button.pressed {
   opacity: 0.2;
@@ -538,8 +449,6 @@ button.pressed,
  * to style touchend interactions.
  */
 
-a.released,
-button.released,
 ::content a.released,
 ::content button.released {
   transition: opacity 200ms;
@@ -591,24 +500,7 @@ button.released,
 
 .icon-menu:before { content: 'menu'; }
 .icon-close:before { content: 'close'; }
-
-/** Back Icon
- ---------------------------------------------------------*/
-
-.icon-back:before {
-  content: 'back';
-}
-
-/**
- * [dir='rtl']
- *
- * Switch to use the 'forward' icon
- * when in right-to-left direction.
- */
-
-[dir='rtl'] .icon-back:before {
-  content: 'forward';
-}
+.icon-back:before { content: 'back'; }
 
 </style>
 
@@ -619,13 +511,48 @@ button.released,
   <content select="h1,h2,h3,h4,a,button"></content>
 </div>`;
 
-// If the browser doesn't support shadow-css
-// selectors yet, we update the template
-// to use the shim classes instead.
-if (!hasShadowCSS) {
-  template = template
-    .replace('::content', '.-content', 'g')
-    .replace(':host', '.-host', 'g');
+/**
+ * Extracts the :host and ::content rules
+ * from the shadow-dom CSS and rewrites
+ * them to work from the <style scoped>
+ * injected at the root of the component.
+ *
+ * @return {String}
+ */
+var lightCSS = (function() {
+  if (hasShadowCSS) return '';
+
+  var regex = /(?::host|::content)[^{]*\{[^}]*\}/g;
+  var lightCSS = '';
+
+  template = template.replace(regex, function(match) {
+    lightCSS += match.replace(/::content|:host/g, 'gaia-header');
+    return '';
+  });
+
+  return lightCSS;
+})();
+
+/**
+ * The Gecko platform doesn't yet have
+ * `::content` or `:host`, selectors,
+ * without these we are unable to style
+ * user-content in the light-dom from
+ * within our shadow-dom style-sheet.
+ *
+ * To workaround this, we clone the <style>
+ * node into the root of the component,
+ * so our selectors are able to target
+ * light-dom content.
+ *
+ * @private
+ */
+function shadowStyleHack(el) {
+  if (hasShadowCSS) { return; }
+  var style = document.createElement('style');
+  style.setAttribute('scoped', '');
+  style.innerHTML = lightCSS;
+  el.appendChild(style);
 }
 
 // Register and return the constructor
