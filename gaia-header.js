@@ -93,7 +93,7 @@ module.exports = Component.register('gaia-header', {
    */
   rerunFontFit: function() {
     for (var i = 0; i < this.els.headings.length; i++) {
-      this.els.headings[i].textContent = this.els.headings[i].textContent;
+      fontFit.reformatHeading(this.els.headings[i]);
     }
   },
 

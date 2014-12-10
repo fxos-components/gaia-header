@@ -306,6 +306,22 @@ suite('font-fit.js', function() {
 
       assert.notEqual(getMinHeaderFontSize(), getComputedStyle(el).fontSize);
     });
+
+    test('should trim and compact spaces', function() {
+      var el = setupHeaderElement();
+      var style = GaiaHeaderFontFit._getStyleProperties(el);
+
+      var inputText = '   hello    world    ';
+      var expected = 'hello world';
+
+      var contextProto = Object.getPrototypeOf(
+        document.createElement('canvas').getContext('2d')
+      );
+      var spy = this.sandbox.spy(contextProto, 'measureText');
+      el.textContent = inputText;
+      GaiaHeaderFontFit._autoResizeElement(el, style);
+      sinon.assert.calledWith(spy, expected);
+    });
   });
 
   /*suite('GaiaHeaderFontFit auto resize Mutation Observer', function() {

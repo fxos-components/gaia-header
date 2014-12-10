@@ -3,7 +3,10 @@ module.exports = function(config) {
   config.set({
     frameworks: ['mocha', 'sinon-chai'],
     browsers: ['firefox_latest'],
-    client: { mocha: { 'ui': 'tdd' } },
+    client: {
+      captureConsole: true,
+      mocha: { 'ui': 'tdd' }
+    },
     basePath: '../',
 
     customLaunchers: {
@@ -32,6 +35,7 @@ module.exports = function(config) {
     ],
 
     proxies: {
-      '/bower_components/': 'http://localhost:9876/base/bower_components/' },
+      '/bower_components/': 'http://localhost:9876/base/bower_components/'
+    }
   });
 };

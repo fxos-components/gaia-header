@@ -10,15 +10,18 @@ suite('GaiaHeader', function() {
   setup(function() {
     this.sandbox = sinon.sandbox.create();
     this.container = document.createElement('div');
+    document.body.appendChild(this.container);
     this.sandbox.spy(HTMLElement.prototype, 'addEventListener');
 
     realGaiaHeaderFontFit = window['./lib/font-fit'];
-    window['./font-fit'] = window['./test/mocks/mock_font_fit'];
+    window['./lib/font-fit'] = window['./test/mocks/mock_font_fit'];
   });
 
   teardown(function() {
     this.sandbox.restore();
-    window['./font-fit'] = realGaiaHeaderFontFit;
+    this.container.remove();
+
+    window['./lib/font-fit'] = realGaiaHeaderFontFit;
   });
 
   test('It hides the action button if no action type defined', function() {
@@ -184,5 +187,14 @@ suite('GaiaHeader', function() {
 
       assert.equal(callback.args[0][0].detail.type, 'menu');
     });
+  });
+
+  test('rerunFontFit does not b0rk the markup', function() {
+    this.container.innerHTML = '<gaia-header action="back"><h1><p>markup</p></gaia-header>';
+
+    var element = this.container.firstElementChild;
+    element.rerunFontFit();
+
+    assert.isNotNull(element.querySelector('p'));
   });
 });
