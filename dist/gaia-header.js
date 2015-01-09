@@ -261,12 +261,50 @@ require('gaia-icons');
  */
 var actionTypes = { menu: 1, back: 1, close: 1 };
 
+function numericalValueDescriptor(attributeName) {
+  return {
+    get: function() {
+      return this.attrValues[attributeName];
+    },
+
+    set: function(val) {
+      /* jshint validthis:true */
+      val = parseInt(val);
+      if (isNaN(val)) {
+        val = null;
+      }
+      this.attrValues[attributeName] = val;
+    }
+  };
+}
+
 /**
  * Register the component.
  *
  * @return {Element} constructor
  */
 module.exports = Component.register('gaia-header', {
+  attrs: {
+    'no-font-fit': {
+      get: function() {
+        return this.attrValues.noFontFit;
+      },
+      set: function(val) {
+        this.attrValues.noFontFit = val !== null;
+      }
+    },
+    'action': {
+      get: function() {
+        return this.attrValues.action;
+      },
+      set: function(val) {
+        this.attrValues.action = val;
+      }
+    },
+    'title-start': numericalValueDescriptor('title-start'),
+    'title-end': numericalValueDescriptor('title-end'),
+    'available-width': numericalValueDescriptor('available-width')
+  },
 
   /**
    * Called when the element is first created.
@@ -277,6 +315,9 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   created: function() {
+    this.attrValues = {};
+    this.runFontFitTimeout = null;
+
     this.createShadowRoot().innerHTML = this.template;
 
     // Get els
@@ -287,8 +328,28 @@ module.exports = Component.register('gaia-header', {
     };
 
     this.els.actionButton.addEventListener('click', e => this.onActionButtonClick(e));
+
+    Object.keys(this.attrs).forEach(
+      (name) => this[name] = this.getAttribute(name)
+    );
+
     this.configureActionButton();
+  },
+
+  /**
+   * Initializes the component.
+   * It especially runs the font-fit algorithm once, and registers the
+   * textContent observer.
+   *
+   * @private
+   */
+  init: function() {
+    if (this['no-font-fit']) {
+      return;
+    }
+
     this.runFontFit();
+    this.addFontFitObserver();
   },
 
   /**
@@ -298,7 +359,14 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   attached: function() {
-    this.rerunFontFit();
+    this.init();
+  },
+
+  /**
+   * Called when the element is detached from the DOM
+   */
+  detached: function() {
+    this.removeFontFitObserver();
   },
 
   /**
@@ -308,10 +376,52 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   attributeChanged: function(attr) {
-    if (attr === 'action') {
-      this.configureActionButton();
-      this.rerunFontFit();
+    if (!(attr in this.attrs) || this['no-font-fit']) {
+      return;
     }
+
+    switch(attr) {
+      case 'no-font-fit':
+        setTimeout(() => this.init());
+      return;
+      case 'action':
+        this.configureActionButton();
+      break;
+    }
+
+    this.runFontFitSoon();
+  },
+
+  /**
+   * Adds the textContent observer in the font fit library.
+   *
+   * @private
+   */
+  addFontFitObserver: function() {
+    for (var i = 0; i < this.els.headings.length; i++) {
+      fontFit.observeHeadingChanges(this.els.headings[i]);
+    }
+  },
+
+  /**
+   * Removes the textContent observer in the font fit library.
+   *
+   * @private
+   */
+  removeFontFitObserver: function() {
+    fontFit.disconnectHeadingObserver();
+  },
+
+  /**
+   * This function will debounce the use of runFontFit. This is used in
+   * attributeChanged so that the component user can change different attributes
+   * and still have runFontFit run once.
+   *
+   * @private
+   */
+  runFontFitSoon: function() {
+    clearTimeout(this.runFontFitTimeout);
+    this.runFontFitTimeout = setTimeout(() => this.runFontFit());
   },
 
   /**
@@ -322,21 +432,11 @@ module.exports = Component.register('gaia-header', {
    */
   runFontFit: function() {
     for (var i = 0; i < this.els.headings.length; i++) {
-      fontFit.reformatHeading(this.els.headings[i]);
-      fontFit.observeHeadingChanges(this.els.headings[i]);
-    }
-  },
-
-  /**
-   * Rerun font-fit logic.
-   *
-   * TODO: We really need an official API for this.
-   *
-   * @private
-   */
-  rerunFontFit: function() {
-    for (var i = 0; i < this.els.headings.length; i++) {
-      fontFit.reformatHeading(this.els.headings[i]);
+      var heading = this.els.headings[i];
+      var start = this['title-start'];
+      var end = this['title-end'];
+      var width = this['available-width'];
+      fontFit.reformatHeading(heading, start, end, width);
     }
   },
 
@@ -347,7 +447,7 @@ module.exports = Component.register('gaia-header', {
    * @public
    */
   triggerAction: function() {
-    if (this.isSupportedAction(this.getAttribute('action'))) {
+    if (this.isSupportedAction(this.action)) {
       this.els.actionButton.click();
     }
   },
@@ -361,7 +461,7 @@ module.exports = Component.register('gaia-header', {
    */
   configureActionButton: function() {
     var old = this.els.actionButton.getAttribute('icon');
-    var type = this.getAttribute('action');
+    var type = this.action;
     var supported = this.isSupportedAction(type);
     this.els.actionButton.classList.remove('icon-' + old);
     this.els.actionButton.setAttribute('icon', type);
@@ -375,7 +475,7 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   isSupportedAction: function(action) {
-    return action && actionTypes[action];
+    return !!(action && actionTypes[action]);
   },
 
   /**
@@ -389,7 +489,7 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   onActionButtonClick: function(e) {
-    var config = { detail: { type: this.getAttribute('action') } };
+    var config = { detail: { type: this.action } };
     var actionEvent = new CustomEvent('action', config);
     setTimeout(this.dispatchEvent.bind(this, actionEvent));
   },
@@ -678,6 +778,27 @@ return w[n];},m.exports,m);w[n]=m.exports;};})('gaia-header',this));
 ;(function(define){'use strict';define(function(require,exports,module){
   /*jshint esnext:true*/
 
+  /* This map holds values specific to a heading.
+   * The key is the heading node itself. Because it's a WeakMap, it should be
+   * freed by the GC when the node is removed from the DOM.
+   */
+  var privMap = new WeakMap();
+
+  function getPriv(instance) {
+    var privMembers = privMap.get(instance);
+
+    if (!privMembers) {
+      privMembers = {
+        start: null,
+        end: null,
+        width: null
+      };
+      privMap.set(instance, privMembers);
+    }
+
+    return privMembers;
+  }
+
   /**
    * Utility functions for measuring and manipulating font sizes
    */
@@ -701,22 +822,75 @@ return w[n];},m.exports,m);w[n]=m.exports;};})('gaia-header',this));
     },
 
     /**
+     * Stops the observer from observing the heading changes.
+     */
+    disconnectHeadingObserver: function() {
+      var observer = this._getTextChangeObserver();
+      observer.disconnect();
+    },
+
+    /**
      * Resize and reposition the header text based on string length and
      * container position.
      *
      * @param {HTMLHeadingElement} heading h1 text inside header to reformat.
+     * @param {Number} start Offset in pixels between the start of the text
+     * container and the start of the inner window. If it's undefined, we use
+     * the value stored in the private map. If it's null, we consider it was not
+     * specified by the author. If neither `start` or `end` is specified, we get the
+     * values from the DOM.
+     * @param {Number} end Offset in pixels between the end of the text
+     * container and the end of the inner window. If it's undefined, we use
+     * the value stored in the private map. If it's null, we consider it was not
+     * specified by the author. If neither `start` or `end` is specified, we get the
+     * values from the DOM.
+     * @param {Number} width Size of the width of the gaia-header element. If
+     * it's not specified, we either get it from the DOM if s`tart` and `end` are
+     * taken from the DOM, or we use the window's width if either `start` or `end`
+     * is specified.
      */
-    reformatHeading: function(heading) {
+    reformatHeading: function(heading, start, end, width) {
       // Skip resize logic if header has no content, ie before localization.
       if (!heading || heading.textContent.trim() === '') {
         return;
       }
 
+      var style;
+      var priv = getPriv(heading);
+      if (start !== undefined) {
+        priv.start = start;
+      }
+
+      if (end !== undefined) {
+        priv.end = end;
+      }
+
+      if (width !== undefined) {
+        priv.width = width;
+      }
+
+      start = priv.start;
+      end = priv.end;
+
+      var hasSizeInformation = start !== null || end !== null;
+
       // Reset our centering styles.
       this._resetCentering(heading);
 
-      // Cache the element style properties to avoid reflows.
-      var style = this._getStyleProperties(heading);
+      if (hasSizeInformation) {
+        width = priv.width || this._getWindowWidth();
+        style = {
+          fontFamily: 'sans-serif',
+          contentWidth: width - (start || 0) - (end || 0),
+          paddingRight: 0,
+          paddingLeft: 0,
+          offsetLeft: start || 0,
+          rtlFriendly: true
+        };
+      } else {
+        // Cache the element style properties to avoid reflows.
+        style = this._getStyleProperties(heading);
+      }
 
       // If the document is inside a hidden iframe
       // `window.getComputedStyle()` returns null,
@@ -953,6 +1127,7 @@ return w[n];},m.exports,m);w[n]=m.exports;};})('gaia-header',this));
       // We need to set the lateral margins to 0 to be able to measure the
       // element width properly. All previously set values are ignored.
       heading.style.marginLeft = heading.style.marginRight = '0';
+      heading.style.MozMarginStart = heading.style.MozMarginEnd = '0';
     },
 
     /**
@@ -986,6 +1161,15 @@ return w[n];},m.exports,m);w[n]=m.exports;};})('gaia-header',this));
         return;
       }
 
+      var propLeft, propRight;
+      if (styleOptions.rtlFriendly) {
+        propLeft = 'MozMarginStart';
+        propRight = 'MozMarginEnd';
+      } else {
+        propLeft = 'marginLeft';
+        propRight = 'marginRight';
+      }
+
       // To center, we need to make sure the space to the left of the header
       // is the same as the space to the right, so take the largest of the two.
       var margin = Math.max(sideSpaceLeft, sideSpaceRight);
@@ -996,10 +1180,10 @@ return w[n];},m.exports,m);w[n]=m.exports;};})('gaia-header',this));
       // See https://bugzil.la/1026955
       if (minHeaderWidth + (margin * 2) < this._getWindowWidth() - 1) {
         if (sideSpaceLeft < sideSpaceRight) {
-          heading.style.marginLeft = (sideSpaceRight - sideSpaceLeft) + 'px';
+          heading.style[propLeft] = (sideSpaceRight - sideSpaceLeft) + 'px';
         }
         if (sideSpaceRight < sideSpaceLeft) {
-          heading.style.marginRight = (sideSpaceLeft - sideSpaceRight) + 'px';
+          heading.style[propRight] = (sideSpaceLeft - sideSpaceRight) + 'px';
         }
       }
     },

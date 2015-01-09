@@ -18,12 +18,50 @@ require('gaia-icons');
  */
 var actionTypes = { menu: 1, back: 1, close: 1 };
 
+function numericalValueDescriptor(attributeName) {
+  return {
+    get: function() {
+      return this.attrValues[attributeName];
+    },
+
+    set: function(val) {
+      /* jshint validthis:true */
+      val = parseInt(val);
+      if (isNaN(val)) {
+        val = null;
+      }
+      this.attrValues[attributeName] = val;
+    }
+  };
+}
+
 /**
  * Register the component.
  *
  * @return {Element} constructor
  */
 module.exports = Component.register('gaia-header', {
+  attrs: {
+    'no-font-fit': {
+      get: function() {
+        return this.attrValues.noFontFit;
+      },
+      set: function(val) {
+        this.attrValues.noFontFit = val !== null;
+      }
+    },
+    'action': {
+      get: function() {
+        return this.attrValues.action;
+      },
+      set: function(val) {
+        this.attrValues.action = val;
+      }
+    },
+    'title-start': numericalValueDescriptor('title-start'),
+    'title-end': numericalValueDescriptor('title-end'),
+    'available-width': numericalValueDescriptor('available-width')
+  },
 
   /**
    * Called when the element is first created.
@@ -34,6 +72,9 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   created: function() {
+    this.attrValues = {};
+    this.runFontFitTimeout = null;
+
     this.createShadowRoot().innerHTML = this.template;
 
     // Get els
@@ -44,8 +85,28 @@ module.exports = Component.register('gaia-header', {
     };
 
     this.els.actionButton.addEventListener('click', e => this.onActionButtonClick(e));
+
+    Object.keys(this.attrs).forEach(
+      (name) => this[name] = this.getAttribute(name)
+    );
+
     this.configureActionButton();
+  },
+
+  /**
+   * Initializes the component.
+   * It especially runs the font-fit algorithm once, and registers the
+   * textContent observer.
+   *
+   * @private
+   */
+  init: function() {
+    if (this['no-font-fit']) {
+      return;
+    }
+
     this.runFontFit();
+    this.addFontFitObserver();
   },
 
   /**
@@ -55,7 +116,14 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   attached: function() {
-    this.rerunFontFit();
+    this.init();
+  },
+
+  /**
+   * Called when the element is detached from the DOM
+   */
+  detached: function() {
+    this.removeFontFitObserver();
   },
 
   /**
@@ -65,10 +133,52 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   attributeChanged: function(attr) {
-    if (attr === 'action') {
-      this.configureActionButton();
-      this.rerunFontFit();
+    if (!(attr in this.attrs) || this['no-font-fit']) {
+      return;
     }
+
+    switch(attr) {
+      case 'no-font-fit':
+        setTimeout(() => this.init());
+      return;
+      case 'action':
+        this.configureActionButton();
+      break;
+    }
+
+    this.runFontFitSoon();
+  },
+
+  /**
+   * Adds the textContent observer in the font fit library.
+   *
+   * @private
+   */
+  addFontFitObserver: function() {
+    for (var i = 0; i < this.els.headings.length; i++) {
+      fontFit.observeHeadingChanges(this.els.headings[i]);
+    }
+  },
+
+  /**
+   * Removes the textContent observer in the font fit library.
+   *
+   * @private
+   */
+  removeFontFitObserver: function() {
+    fontFit.disconnectHeadingObserver();
+  },
+
+  /**
+   * This function will debounce the use of runFontFit. This is used in
+   * attributeChanged so that the component user can change different attributes
+   * and still have runFontFit run once.
+   *
+   * @private
+   */
+  runFontFitSoon: function() {
+    clearTimeout(this.runFontFitTimeout);
+    this.runFontFitTimeout = setTimeout(() => this.runFontFit());
   },
 
   /**
@@ -79,21 +189,11 @@ module.exports = Component.register('gaia-header', {
    */
   runFontFit: function() {
     for (var i = 0; i < this.els.headings.length; i++) {
-      fontFit.reformatHeading(this.els.headings[i]);
-      fontFit.observeHeadingChanges(this.els.headings[i]);
-    }
-  },
-
-  /**
-   * Rerun font-fit logic.
-   *
-   * TODO: We really need an official API for this.
-   *
-   * @private
-   */
-  rerunFontFit: function() {
-    for (var i = 0; i < this.els.headings.length; i++) {
-      fontFit.reformatHeading(this.els.headings[i]);
+      var heading = this.els.headings[i];
+      var start = this['title-start'];
+      var end = this['title-end'];
+      var width = this['available-width'];
+      fontFit.reformatHeading(heading, start, end, width);
     }
   },
 
@@ -104,7 +204,7 @@ module.exports = Component.register('gaia-header', {
    * @public
    */
   triggerAction: function() {
-    if (this.isSupportedAction(this.getAttribute('action'))) {
+    if (this.isSupportedAction(this.action)) {
       this.els.actionButton.click();
     }
   },
@@ -118,7 +218,7 @@ module.exports = Component.register('gaia-header', {
    */
   configureActionButton: function() {
     var old = this.els.actionButton.getAttribute('icon');
-    var type = this.getAttribute('action');
+    var type = this.action;
     var supported = this.isSupportedAction(type);
     this.els.actionButton.classList.remove('icon-' + old);
     this.els.actionButton.setAttribute('icon', type);
@@ -132,7 +232,7 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   isSupportedAction: function(action) {
-    return action && actionTypes[action];
+    return !!(action && actionTypes[action]);
   },
 
   /**
@@ -146,7 +246,7 @@ module.exports = Component.register('gaia-header', {
    * @private
    */
   onActionButtonClick: function(e) {
-    var config = { detail: { type: this.getAttribute('action') } };
+    var config = { detail: { type: this.action } };
     var actionEvent = new CustomEvent('action', config);
     setTimeout(this.dispatchEvent.bind(this, actionEvent));
   },

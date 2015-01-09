@@ -9,6 +9,8 @@ suite('GaiaHeader', function() {
 
   setup(function() {
     this.sandbox = sinon.sandbox.create();
+    this.sandbox.useFakeTimers();
+
     this.container = document.createElement('div');
     document.body.appendChild(this.container);
     this.sandbox.spy(HTMLElement.prototype, 'addEventListener');
@@ -26,15 +28,20 @@ suite('GaiaHeader', function() {
 
   test('It hides the action button if no action type defined', function() {
     this.container.innerHTML = '<gaia-header></gaia-header>';
-    var inner = this.container.firstElementChild.shadowRoot.querySelector('.inner');
-    assert.isFalse(inner.classList.contains('action-supported'));
+    var element = this.container.firstElementChild;
+    var inner = element.shadowRoot.querySelector('.inner');
+    assert.isFalse(inner.classList.contains('supported-action'));
+    assert.equal(element.action, null);
   });
 
   test('It doesn\'t show an action button for unsupported action types', function() {
     this.container.innerHTML = '<gaia-header action="unsupported"></gaia-header>';
     var element = this.container.firstElementChild;
     var inner = element.shadowRoot.querySelector('.inner');
-    assert.isFalse(inner.classList.contains('action-supported'));
+    assert.isFalse(inner.classList.contains('supported-action'));
+
+    // In the future, we may want to have "null" here in this case.
+    assert.equal(element.action, 'unsupported');
   });
 
   test('It adds the correct icon attribute for the action type', function() {
@@ -42,8 +49,242 @@ suite('GaiaHeader', function() {
       this.container.innerHTML = '<gaia-header action="' + type + '"></gaia-header>';
       var element = this.container.firstElementChild;
       var actionButton = element.shadowRoot.querySelector('.action-button');
+      var inner = element.shadowRoot.querySelector('.inner');
       assert.isTrue(actionButton.classList.contains('icon-' + type));
+      assert.isTrue(inner.classList.contains('supported-action'));
+      assert.equal(element.action, type);
     }, this);
+  });
+
+  test('It catches changes to the `action` attribute', function() {
+    this.container.innerHTML = '<gaia-header action="back"><h1></h1></gaia-header>';
+    var element = this.container.firstElementChild;
+    var h1 = element.querySelector('h1');
+    var actionButton = element.shadowRoot.querySelector('.action-button');
+    var inner = element.shadowRoot.querySelector('.inner');
+    assert.isTrue(actionButton.classList.contains('icon-back'));
+    assert.equal(element.action, 'back');
+
+    this.sandbox.stub(realGaiaHeaderFontFit, 'reformatHeading');
+
+    /* change to another supported action */
+    element.setAttribute('action', 'close');
+    this.sandbox.clock.tick();
+    assert.isTrue(actionButton.classList.contains('icon-close'));
+    assert.isTrue(inner.classList.contains('supported-action'));
+    assert.equal(element.action, 'close');
+    sinon.assert.calledWith(realGaiaHeaderFontFit.reformatHeading, h1);
+
+    /* change to an unsupported action */
+    element.setAttribute('action', 'unsupported');
+    this.sandbox.clock.tick();
+    assert.isFalse(actionButton.classList.contains('icon-unsupported'));
+    assert.isFalse(inner.classList.contains('supported-action'));
+
+    // In the future, we may want to have "null" here in this case.
+    assert.equal(element.action, 'unsupported');
+    sinon.assert.calledWith(realGaiaHeaderFontFit.reformatHeading, h1);
+
+    /* back to something supported */
+    element.setAttribute('action', 'menu');
+    this.sandbox.clock.tick();
+    assert.isTrue(actionButton.classList.contains('icon-menu'));
+    assert.isTrue(inner.classList.contains('supported-action'));
+    assert.equal(element.action, 'menu');
+    sinon.assert.calledWith(realGaiaHeaderFontFit.reformatHeading, h1);
+  });
+
+  suite('title-start, title-end, available-width attributes', function() {
+    var h1, element;
+
+    function insertHeader(container, attrs = {}) {
+      var start = 'titleStart' in attrs ?
+        'title-start="' +  attrs.titleStart + '"' : '';
+      var end = 'titleEnd' in attrs ?
+        'title-end="' +  attrs.titleEnd + '"': '';
+      var width = 'availableWidth' in attrs ?
+        'available-width="' +  attrs.availableWidth + '"': '';
+
+      container.innerHTML = `
+        <gaia-header ${start} ${end} ${width}>
+          <h1></h1>
+        </gaia-header>
+      `;
+
+      element = container.firstElementChild;
+      // workaround to trigger attachedCallback (bug 1102502)
+      element.remove();
+      container.appendChild(element);
+
+      h1 = element.querySelector('h1');
+    }
+
+    setup(function() {
+      this.sandbox.stub(realGaiaHeaderFontFit, 'reformatHeading');
+    });
+
+    suite('normal cases', function() {
+      setup(function() {
+        insertHeader(
+          this.container,
+          { titleStart: 50, titleEnd: 100, availableWidth: 200 });
+      });
+
+      test('are correctly taken into account', function() {
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, 100, 200
+        );
+
+        assert.equal(element['title-start'], 50);
+        assert.equal(element['title-end'], 100);
+        assert.equal(element['available-width'], 200);
+      });
+
+      test('changing start attribute is taken into account', function() {
+        element.setAttribute('title-start', '0');
+        assert.equal(element['title-start'], 0);
+
+        this.sandbox.clock.tick();
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 0, 100, 200
+        );
+
+        element.removeAttribute('title-start');
+        assert.equal(element['title-start'], null);
+
+        this.sandbox.clock.tick();
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, null, 100, 200
+        );
+      });
+
+      test('changing end attribute is taken into account', function() {
+        element.setAttribute('title-end', '0');
+        assert.equal(element['title-end'], 0);
+
+        this.sandbox.clock.tick();
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, 0, 200
+        );
+
+        element.removeAttribute('title-end');
+        assert.equal(element['title-end'], null);
+
+        this.sandbox.clock.tick();
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, null, 200
+        );
+      });
+
+      test('changing width attribute is taken into account', function() {
+        element.setAttribute('available-width', '50');
+        assert.equal(element['available-width'], 50);
+
+        this.sandbox.clock.tick();
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, 100, 50
+        );
+
+        element.removeAttribute('available-width');
+        assert.equal(element['available-width'], null);
+
+        this.sandbox.clock.tick();
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, 100, null
+        );
+      });
+
+      test('changing all attributes trigger reformating only once', function() {
+        realGaiaHeaderFontFit.reformatHeading.reset();
+
+        element.setAttribute('title-start', '0');
+        element.setAttribute('title-end', '0');
+        element.setAttribute('available-width', '50');
+        this.sandbox.clock.tick();
+
+        sinon.assert.calledOnce(realGaiaHeaderFontFit.reformatHeading);
+      });
+    });
+
+    suite('some attributes are absent', function() {
+      test('title-start is absent', function() {
+        insertHeader(
+          this.container,
+          { titleEnd: 100, availableWidth: 200 }
+        );
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, null, 100, 200
+        );
+      });
+
+      test('title-end is absent', function() {
+        insertHeader(
+          this.container,
+          { titleStart: 50, availableWidth: 200 }
+        );
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, null, 200
+        );
+      });
+
+      test('available-width is absent', function() {
+        insertHeader(
+          this.container,
+          { titleStart: 50, titleEnd: 100 }
+        );
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 50, 100, null
+        );
+      });
+    });
+
+    suite('error cases', function() {
+      test('0 is not considered as absent', function() {
+        insertHeader(
+          this.container,
+          { titleStart: 0, titleEnd: 0, availableWidth: 0 }
+        );
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, 0, 0, 0
+        );
+      });
+
+      test('non-number is considered as absent', function() {
+        insertHeader(
+          this.container,
+          { titleStart: 'invalid', titleEnd: 'invalid', availableWidth: 'invalid' }
+        );
+
+        sinon.assert.calledWith(
+          realGaiaHeaderFontFit.reformatHeading,
+          h1, null, null, null
+        );
+        assert.equal(element['title-start'], null);
+        assert.equal(element['title-end'], null);
+        assert.equal(element['available-width'], null);
+      });
+    });
+
   });
 
   test('Should add a click event listener to the action button if an action defined', function() {
@@ -59,26 +300,14 @@ suite('GaiaHeader', function() {
     assert.ok(element.querySelector('style'));
   });
 
-  test('Should change action button when action changes', function() {
-    this.container.innerHTML = '<gaia-header></gaia-header>';
-    var element = this.container.firstElementChild;
-    var button = element.shadowRoot.querySelector('.action-button');
-    element.setAttribute('action', 'back');
-    assert.isTrue(button.classList.contains('icon-back'));
-    element.setAttribute('action', 'menu');
-    assert.isTrue(button.classList.contains('icon-menu'));
-  });
-
   test('triggerAction() should cause a `click` on action button', function() {
-    this.clock = sinon.useFakeTimers();
     this.container.innerHTML = '<gaia-header action="menu"></gaia-header>';
     var element = this.container.firstElementChild;
     var callback = sinon.spy();
     element.addEventListener('action', callback);
     element.triggerAction();
-    this.clock.tick(1);
+    this.sandbox.clock.tick(1);
     assert.equal(callback.args[0][0].detail.type, 'menu');
-    this.clock.restore();
   });
 
   test('It fails silently when `window.getComputedStyle()` returns null (ie. hidden iframe)', function() {
@@ -90,13 +319,56 @@ suite('GaiaHeader', function() {
     document.body.appendChild(element);
   });
 
-  test('rerunFontFit does not b0rk the markup', function() {
+  test('runFontFit does not b0rk the markup', function() {
     this.container.innerHTML = '<gaia-header action="back"><h1><p>markup</p></gaia-header>';
 
     var element = this.container.firstElementChild;
-    element.rerunFontFit();
+    element.runFontFit();
 
     assert.isNotNull(element.querySelector('p'));
+  });
+
+  test('It should still work fine after detaching and reattaching', function() {
+    this.container.innerHTML = '<gaia-header action="menu"><h1>title</h1></gaia-header>';
+    var element = this.container.firstElementChild;
+    var h1 = element.querySelector('h1');
+
+    this.sandbox.stub(realGaiaHeaderFontFit, 'disconnectHeadingObserver');
+    element.remove();
+    sinon.assert.called(realGaiaHeaderFontFit.disconnectHeadingObserver);
+
+    this.sandbox.stub(realGaiaHeaderFontFit, 'reformatHeading');
+    this.sandbox.stub(realGaiaHeaderFontFit, 'observeHeadingChanges');
+    this.container.appendChild(element);
+
+    sinon.assert.calledWith(realGaiaHeaderFontFit.reformatHeading, h1);
+    sinon.assert.calledWith(realGaiaHeaderFontFit.observeHeadingChanges, h1);
+  });
+
+  test('no-font-fit attribute', function() {
+    this.sandbox.stub(realGaiaHeaderFontFit, 'reformatHeading');
+    this.sandbox.stub(realGaiaHeaderFontFit, 'observeHeadingChanges');
+
+    this.container.innerHTML = '<gaia-header no-font-fit><h1>title</h1></gaia-header>';
+
+    var element = this.container.firstElementChild;
+    var h1 = element.querySelector('h1');
+
+    assert.equal(element['no-font-fit'], true);
+
+    sinon.assert.notCalled(realGaiaHeaderFontFit.reformatHeading);
+    sinon.assert.notCalled(realGaiaHeaderFontFit.observeHeadingChanges);
+
+    element.setAttribute('title-start', '5');
+    this.sandbox.clock.tick();
+    sinon.assert.notCalled(realGaiaHeaderFontFit.reformatHeading);
+
+    element.removeAttribute('no-font-fit');
+    assert.equal(element['no-font-fit'], false);
+    this.sandbox.clock.tick();
+
+    sinon.assert.calledWith(realGaiaHeaderFontFit.reformatHeading, h1);
+    sinon.assert.calledWith(realGaiaHeaderFontFit.observeHeadingChanges, h1);
   });
 
   suite('style', function() {
@@ -165,14 +437,6 @@ suite('GaiaHeader', function() {
   });
 
   suite('GaiaHeader#onActionButtonClick()', function(done) {
-    setup(function() {
-      this.clock = sinon.useFakeTimers();
-    });
-
-    teardown(function() {
-      this.clock.restore();
-    });
-
     test('Should emit an \'action\' event', function() {
       this.container.innerHTML = '<gaia-header action="menu"></gaia-header>';
       var element = this.container.firstElementChild;
@@ -180,7 +444,7 @@ suite('GaiaHeader', function() {
 
       element.addEventListener('action', callback);
       element.onActionButtonClick();
-      this.clock.tick(1);
+      this.sandbox.clock.tick(1);
 
       sinon.assert.called(callback);
     });
@@ -192,7 +456,7 @@ suite('GaiaHeader', function() {
 
       element.addEventListener('action', callback);
       element.onActionButtonClick();
-      this.clock.tick(1);
+      this.sandbox.clock.tick(1);
 
       assert.equal(callback.args[0][0].detail.type, 'menu');
     });

@@ -1,3 +1,5 @@
+/*global assert,suite,setup,teardown,sinon,test*/
+/*jshint browser: true */
 'use strict';
 
 suite('font-fit.js', function() {
@@ -568,6 +570,156 @@ suite('font-fit.js', function() {
       });
     });
   });
+
+  suite('reformatHeading()', function() {
+    var h1, offsetLeftGetStub, innerWidthStub;
+    var innerWidthDescriptor;
+
+    setup(function() {
+      h1 = setupHeaderElement();
+      h1.textContent = 'some text';
+      this.sandbox.spy(window, 'getComputedStyle');
+      this.sandbox.spy(GaiaHeaderFontFit, '_autoResizeElement');
+
+      offsetLeftGetStub = sinon.stub().returns(0);
+      innerWidthStub = sinon.stub().returns(500);
+
+      Object.defineProperty(h1, 'offsetLeft', {
+        configurable: true,
+        enumerable: true,
+        get: offsetLeftGetStub
+      });
+
+      innerWidthDescriptor = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        enumerable: true,
+        get: innerWidthStub
+      });
+    });
+
+    teardown(function() {
+      Object.defineProperty(window, 'innerWidth', innerWidthDescriptor);
+    });
+
+    suite('with start and end, without width', function() {
+      setup(function() {
+        GaiaHeaderFontFit.reformatHeading(h1, 50, 100, null);
+      });
+
+      test('has the right behavior', function() {
+        // uses the screen width
+        sinon.assert.calledWithMatch(
+          GaiaHeaderFontFit._autoResizeElement,
+          h1, { contentWidth: innerWidthStub.lastCall.returnValue - 50 - 100 }
+        );
+
+        sinon.assert.notCalled(offsetLeftGetStub, 'does not use offsetLeft');
+        assert.equal(
+          h1.style.MozMarginStart, '50px', 'sets the correct left margin'
+        );
+        assert.equal(
+          h1.style.MozMarginEnd, '0px', 'sets the correct right margin'
+        );
+        var h1Style = window.getComputedStyle(h1);
+        assert.equal(
+          h1Style.marginLeft, '50px', 'sets the correct rtl-dependent left margin'
+        );
+        assert.equal(
+          h1Style.marginRight, '0px', 'sets the correct rtl-dependent right margin'
+        );
+      });
+
+      test('has the right behavior when called again', function() {
+        h1.textContent = 'other text';
+        h1.style.marginLeft = '200px'; // set a value to check if it's correctly set
+        GaiaHeaderFontFit.reformatHeading(h1);
+
+        sinon.assert.notCalled(offsetLeftGetStub, 'does not use offsetLeft');
+
+        assert.equal(
+          h1.style.MozMarginStart, '50px', 'sets the correct left margin'
+        );
+        assert.equal(
+          h1.style.MozMarginEnd, '0px', 'sets the correct right margin'
+        );
+        var h1Style = window.getComputedStyle(h1);
+        assert.equal(
+          h1Style.marginLeft, '50px', 'sets the correct rtl-dependent left margin'
+        );
+        assert.equal(
+          h1Style.marginRight, '0px', 'sets the correct rtl-dependent right margin'
+        );
+      });
+
+      test('updates stored start/end values when called with different values', function() {
+        h1.style.marginLeft = '200px'; // reset the value to check if it's correctly set
+        GaiaHeaderFontFit.reformatHeading(h1, 100, 50, null);
+
+        sinon.assert.notCalled(offsetLeftGetStub, 'does not use offsetLeft');
+
+        assert.equal(
+          h1.style.MozMarginStart, '0px', 'sets the correct left margin'
+        );
+        assert.equal(
+          h1.style.MozMarginEnd, '50px', 'sets the correct right margin'
+        );
+        var h1Style = window.getComputedStyle(h1);
+        assert.equal(
+          h1Style.marginLeft, '0px', 'sets the correct rtl-dependent left margin'
+        );
+        assert.equal(
+          h1Style.marginRight, '50px', 'sets the correct rtl-dependent right margin'
+        );
+      });
+
+      test('resets stored information when called with null, null', function() {
+        GaiaHeaderFontFit.reformatHeading(h1, 50, null, null);
+        sinon.assert.notCalled(offsetLeftGetStub, 'does not use offsetLeft');
+
+        GaiaHeaderFontFit.reformatHeading(h1, null, null, null);
+        sinon.assert.called(offsetLeftGetStub, 'uses offsetLeft');
+      });
+    });
+
+    test('width parameter behavior', function() {
+      GaiaHeaderFontFit.reformatHeading(h1, 50, 100, 300);
+
+      // uses the passed value
+      sinon.assert.calledWithMatch(
+        GaiaHeaderFontFit._autoResizeElement,
+        h1, { contentWidth: 300 - 50 - 100 }
+      );
+
+      // remember the passed value
+      GaiaHeaderFontFit._autoResizeElement.reset();
+      GaiaHeaderFontFit.reformatHeading(h1);
+      sinon.assert.calledWithMatch(
+        GaiaHeaderFontFit._autoResizeElement,
+        h1, { contentWidth: 300 - 50 - 100 }
+      );
+
+      // forgets the passed value
+      GaiaHeaderFontFit._autoResizeElement.reset();
+      GaiaHeaderFontFit.reformatHeading(h1, 50, 100, null);
+      // uses the screen width
+      sinon.assert.calledWithMatch(
+        GaiaHeaderFontFit._autoResizeElement,
+        h1, { contentWidth: innerWidthStub.lastCall.returnValue - 50 - 100 }
+      );
+
+      // does not use the width parameter if start/end are missing
+      GaiaHeaderFontFit._autoResizeElement.reset();
+      GaiaHeaderFontFit.reformatHeading(h1, null, null, 300);
+      // uses the container width
+      sinon.assert.calledWithMatch(
+        GaiaHeaderFontFit._autoResizeElement,
+        h1, { contentWidth: kContainerWidth }
+      );
+    });
+  });
+
 
   /*suite('Lazy-Loading DOM MutationObserver', function() {
     test('Lazy loaded header should cause reformat', function(done) {

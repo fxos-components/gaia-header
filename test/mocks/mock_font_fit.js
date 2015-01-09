@@ -4,6 +4,8 @@
     observeHeadingChanges: function(heading) {
     },
     reformatHeading: function(heading) {
+    },
+    disconnectHeadingObserver: function(heading) {
     }
   };
 
