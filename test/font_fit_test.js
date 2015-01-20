@@ -288,6 +288,24 @@ suite('font-fit.js', function() {
       assert.equal(parseInt(el.style.marginRight, 10), 0);
     });
   });
+  
+  suite('GaiaHeaderFontFit._getStyleProperties', function() {
+  	test('Should have font-family set', function() {
+  		var el = setupHeaderElement();
+  		el.style.fontFamily = '';
+  		var style = GaiaHeaderFontFit._getStyleProperties(el);
+
+  		assert.equal(style.fontFamily, 'sans-serif');
+  	});
+  	
+  	test('Should not change font-family when pre-set', function() {
+  		var el = setupHeaderElement();
+  		var style = GaiaHeaderFontFit._getStyleProperties(el);
+  		
+  		assert.equal(style.fontFamily, kDefaultFace);
+  	});
+  });
+
 
   suite('GaiaHeaderFontFit._autoResizeElement', function() {
     test('Should not resize a small header title', function() {
