@@ -148,7 +148,7 @@ suite('GaiaHeader', function() {
         return afterNext(el, 'runFontFit');
       }).then(() => {
         sinon.assert.calledOnce(this.fontFit);
-        assert.equal(h1.style.fontSize, '24px', 'font-size has been set');
+        assert.equal(h1.style.fontSize, '23px', 'font-size has been set');
         assert.equal(h1.style.marginLeft, '-50px', 'margin has been set');
       }).then(done, done);
     });
@@ -173,7 +173,7 @@ suite('GaiaHeader', function() {
       var h1 = el.querySelector('h1');
 
       afterNext(el, 'runFontFit').then(() => {
-        assert.equal(h1.style.fontSize, '24px');
+        assert.equal(h1.style.fontSize, '23px');
         assert.equal(h1.style.marginLeft, '-50px');
 
         h1.textContent = 'Title';
@@ -209,13 +209,13 @@ suite('GaiaHeader', function() {
       h1.textContent = 'long long long long long long long long long long long long long long';
 
       afterNext(el, 'runFontFit').then(() => {
-        assert.equal(h1.style.fontSize, '16px');
+        assert.equal(h1.style.fontSize, '18px');
 
         h1.textContent = 'short';
 
         return afterNext(el, 'runFontFit');
       }).then(() => {
-        assert.equal(h1.style.fontSize, '24px');
+        assert.equal(h1.style.fontSize, '23px');
       }).then(done, done);
     });
 
@@ -250,7 +250,7 @@ suite('GaiaHeader', function() {
         return el.runFontFit();
       }).then(() => {
         sinon.assert.calledOnce(el.setTitleStyle);
-        assert.equal(h1.style.fontSize, '16px');
+        assert.equal(h1.style.fontSize, '18px');
       }).then(done, done);
     });
   });
@@ -731,6 +731,33 @@ suite('GaiaHeader', function() {
 
       afterNext(el, 'runFontFit').then(() => {
         assert.equal(h1.style.marginLeft, '0px');
+      }).then(done, done);
+    });
+
+    test('It centers with a not too decreased font size', function(done) {
+      this.dom.innerHTML = `<gaia-header action="menu">
+        <h1></h1>
+        <button></button>
+        <button></button>
+      </gaia-header>`;
+
+      var el = this.dom.firstElementChild;
+      var h1 = el.querySelector('h1');
+
+      GaiaHeader.prototype.fontFit.restore();
+      this.sinon.stub(GaiaHeader.prototype, 'fontFit');
+      GaiaHeader.prototype.fontFit.returns({textWidth: 200, fontSize: 20});
+      afterNext(el, 'runFontFit').then(() => {
+        h1.textContent = 'some title';
+
+        return afterNext(el, 'runFontFit');
+      }).then(() => {
+        sinon.assert.calledOnce(GaiaHeader.prototype.fontFit);
+        sinon.assert.calledWithMatch(
+          GaiaHeader.prototype.fontFit,
+          sinon.match.any, sinon.match.any, { min: 20 }
+        );
+        assert.equal(h1.style.fontSize, '20px');
       }).then(done, done);
     });
 

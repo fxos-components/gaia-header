@@ -512,6 +512,24 @@ const TITLE_FONT = 'italic 300 24px FiraSans';
 const TITLE_PADDING = 10;
 
 /**
+ * This is the minimum font size that we can take
+ * when the header title is centered in the window.
+ */
+const MINIMUM_FONT_SIZE_CENTERED = 20;
+
+/**
+ * This is the minimum font size that we can take
+ * when the header title is not centered in the window.
+ */
+const MINIMUM_FONT_SIZE_UNCENTERED = 18;
+
+/**
+ * This is the maximum font size that we can use for
+ * the heade title.
+ */
+const MAXIMUM_FONT_SIZE = 23;
+
+/**
  * Register the element.
  *
  * @return {Element} constructor
@@ -664,7 +682,11 @@ module.exports = component.register('gaia-header', {
 
     var marginStart = this.getTitleMarginStart();
     var textSpace = space.value - Math.abs(marginStart);
-    var fontFitResult = this.fontFit(text, textSpace);
+    var fontFitResult = this.fontFit({
+      text: text,
+      space: textSpace,
+      min: MINIMUM_FONT_SIZE_CENTERED
+    });
     var overflowing = fontFitResult.textWidth > textSpace;
     var padding = { start: 0, end: 0 };
 
@@ -677,7 +699,7 @@ module.exports = component.register('gaia-header', {
       padding.start = !space.start ? TITLE_PADDING : 0;
       padding.end = !space.end ? TITLE_PADDING : 0;
       textSpace = space.value + padding.start + padding.end;
-      fontFitResult = this.fontFit(text, textSpace);
+      fontFitResult = this.fontFit({ text: text, space: textSpace });
       marginStart = 0;
     }
 
@@ -760,20 +782,26 @@ module.exports = component.register('gaia-header', {
    * Run font-fit on a title with
    * the given amount of content space.
    *
-   * @param  {String} text
-   * @param  {Number} space
+   * @param  {Object} {space, text, [min], [max] }
    * @return {Object} {fontSize, textWidth}
    * @private
    */
-  fontFit: function(text, space) {
-    debug('font fit', text, space);
-    return fontFit({
+  fontFit: function(opts) {
+    debug('font fit:', opts);
+
+    // these are the default values.
+    var fontFitArgs = {
       font: TITLE_FONT,
-      space: space,
-      text: text,
-      min: 16,
-      max: 24
-    });
+      min: MINIMUM_FONT_SIZE_UNCENTERED,
+      max: MAXIMUM_FONT_SIZE
+    };
+
+    // but the options can override them.
+    for (var key in opts) {
+      fontFitArgs[key] = opts[key];
+    }
+
+    return fontFit(fontFitArgs);
   },
 
   /**
