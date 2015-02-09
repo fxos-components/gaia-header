@@ -376,7 +376,13 @@ module.exports = component.register('gaia-header', {
    */
   onMutation: function(mutations) {
     debug('on mutation', mutations);
-    this.runFontFit();
+    // if the textContent is changed in a mutation observer just after
+    // attaching, we end up running twice. So let's check this.
+    // When it's not the case, execute right now, we don't need another async
+    // task.
+    if (!this.pending.runFontFitSoon) {
+      this.runFontFit();
+    }
   },
 
   /**

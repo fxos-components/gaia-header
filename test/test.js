@@ -212,6 +212,9 @@ suite('GaiaHeader', function() {
       afterNext(el, 'runFontFit').then(() => {
         assert.equal(h1.style.fontSize, '18px');
 
+        // Calls from mutations are debounced as well
+        sinon.assert.calledOnce(el.runFontFit);
+
         h1.textContent = 'short';
 
         return afterNext(el, 'runFontFit');
