@@ -52,7 +52,7 @@ var BUFFER = 3;
  *   - {Number} `max` Max font-size (px) (optional)
  *
  * @param  {Object} config
- * @return {Object} {fontSize,textWidth}
+ * @return {Object} {fontSize,overflowing,textWidth}
  */
 module.exports = function(config) {
   debug('font fit', config);
@@ -71,7 +71,8 @@ module.exports = function(config) {
 
   return {
     textWidth: textWidth,
-    fontSize: fontSize
+    fontSize: fontSize,
+    overflowing: textWidth > space
   };
 };
 
@@ -659,6 +660,7 @@ module.exports = component.register('gaia-header', {
 
     this.unresolved = {};
     this.pending = {};
+    this._resizeThrottlingId = null;
   },
 
   /**
@@ -679,6 +681,7 @@ module.exports = component.register('gaia-header', {
     debug('attached');
     this.runFontFitSoon();
     this.observerStart();
+    window.addEventListener('resize', this);
   },
 
   /**
@@ -689,12 +692,13 @@ module.exports = component.register('gaia-header', {
    */
   detached: function() {
     debug('detached');
+    window.removeEventListener('resize', this);
     this.observerStop();
     this.clearPending();
   },
 
   /**
-   * Clears pending `.nextTick()`s
+   * Clears pending `.nextTick()`s and requestAnimationFrame's.
    *
    * @private
    */
@@ -703,6 +707,9 @@ module.exports = component.register('gaia-header', {
       this.pending[key].clear();
       delete this.pending[key];
     }
+
+    window.cancelAnimationFrame(this._resizeThrottlingId);
+    this._resizeThrottlingId = null;
   },
 
   /**
@@ -762,7 +769,7 @@ module.exports = component.register('gaia-header', {
   getTitleStyle: function(el, space) {
     debug('get el style', el, space);
     var text = el.textContent;
-    var styleId = space.start + text + space.end;
+    var styleId = space.start + text + space.end + '#' + space.value;
 
     // Bail when there's no text (or just whitespace)
     if (!text || !text.trim()) { return debug('exit: no text'); }
@@ -777,7 +784,7 @@ module.exports = component.register('gaia-header', {
       min: MINIMUM_FONT_SIZE_CENTERED
     });
 
-    var overflowing = fontFitResult.textWidth > textSpace;
+    var overflowing = fontFitResult.overflowing;
     var padding = { start: 0, end: 0 };
 
     // If the text is overflowing in the
@@ -895,6 +902,7 @@ module.exports = component.register('gaia-header', {
   /**
    * Start the observer listening
    * for DOM mutations.
+   * Start the listener for 'resize' event.
    *
    * @private
    */
@@ -920,8 +928,48 @@ module.exports = component.register('gaia-header', {
   observerStop: function() {
     if (!this.observing) { return; }
     this.observer.disconnect();
+
     this.observing = false;
     debug('observer stopped');
+  },
+
+  /**
+   * Handle DOM events.
+   * @param {Event} The DOM Event that's being handled.
+   *
+   * @private
+   */
+  handleEvent: function(e) {
+    debug('received event', e.type, e);
+    switch(e.type) {
+      case 'resize':
+        this.onResize();
+        break;
+    }
+  },
+
+  /**
+   * Handle 'resize' events.
+   *
+   * @private
+   */
+  onResize: function() {
+    debug('onResize', this._resizeThrottlingId);
+
+    if (this._resizeThrottlingId !== null) {
+      return;
+    }
+
+    if (this.notFlush) {
+      return;
+    }
+
+    /* Resize events can arrive at a very high rate, so we're trying to
+     * reasonably throttle these events. */
+    this._resizeThrottlingId = window.requestAnimationFrame(() => {
+      this._resizeThrottlingId = null;
+      this.runFontFitSoon();
+    });
   },
 
   /**
