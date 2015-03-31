@@ -174,10 +174,14 @@ module.exports = component.register('gaia-header', {
   runFontFit: function() {
     debug('run font-fit');
 
-    // Nothing is run if `no-font-fit` attribute
-    // is present. We don't `reject()` as this
-    // isn't technically an error state.
-    if (this.noFontFit) { return Promise.resolve(); }
+    // Nothing to run if `no-font-fit` attribute
+    // is present or the header is not hinted and
+    // `display: none`. We don't `reject()` as
+    // this isn't technically an error state.
+    if (this.noFontFit || (typeof this._titleStart === 'undefined' &&
+        typeof this._titleEnd === 'undefined' && !this.offsetParent)) {
+      return Promise.resolve();
+    }
 
     var titles = this.els.titles;
     var space = this.getTitleSpace();
@@ -570,9 +574,15 @@ module.exports = component.register('gaia-header', {
   sumButtonWidths: function(buttons) {
     var defaultWidth = 50;
     var sum = buttons.reduce((prev, button) => {
+      var matchEmptySelector = !button.firstElementChild && !button.textContent;
+      if (matchEmptySelector) {
+        return button.offsetParent ? prev + defaultWidth : prev;
+      }
       var isStandardButton = button === this.els.actionButton;
-      var width = isStandardButton ? defaultWidth : button.clientWidth;
-      return prev + width;
+      if (isStandardButton) {
+        return prev + defaultWidth;
+      }
+      return prev + button.clientWidth;
     }, 0);
 
     debug('sum button widths', buttons, sum);
