@@ -56,7 +56,7 @@ const MINIMUM_FONT_SIZE_CENTERED = 20;
  * This is the minimum font size that we can take
  * when the header title is not centered in the window.
  */
-const MINIMUM_FONT_SIZE_UNCENTERED = 18;
+const MINIMUM_FONT_SIZE_UNCENTERED = 15;
 
 /**
  * This is the maximum font size that we can use for
