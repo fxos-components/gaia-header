@@ -369,17 +369,6 @@ suite('GaiaHeader', function() {
         sinon.assert.calledOnce(this.fontFit);
       });
     });
-
-    test('children with [l10n-action] are not considered when calculating title space', function() {
-      this.dom.innerHTML = '<gaia-header action="back"><span l10n-action>' +
-        'some text</span><h1>Title title</h1></gaia-header>';
-      var header = this.dom.firstElementChild;
-      var h1 = header.querySelector('h1');
-
-      return afterNext(header, 'runFontFit').then(() => {
-        assert.equal(h1.style.marginInlineStart, '-50px');
-      });
-    });
   });
 
   suite('Mutation observer', function() {
@@ -1134,21 +1123,28 @@ suite('GaiaHeader', function() {
       this.dom.innerHTML = '<gaia-header action="back"><h1>Title</h1></gaia-header>';
       var el = this.dom.firstElementChild;
       var h1 = el.querySelector('h1');
+      assert.equal(el.els.actionButton.getAttribute('data-l10n-id'),
+        'gaia-header-back');
 
       accessibility.check(this.dom)
         .then(() => {
           /* change to another supported action */
           el.setAttribute('action', 'close');
+          assert.equal(el.els.actionButton.getAttribute('data-l10n-id'),
+            'gaia-header-close');
           return accessibility.check(this.dom);
         })
         .then(() => {
           /* change to an unsupported action */
           el.setAttribute('action', 'unsupported');
+          assert.notOk(el.els.actionButton.getAttribute('data-l10n-id'));
           return accessibility.check(this.dom);
         })
         .then(() => {
           /* back to something supported via attribute field */
           el.action = 'menu';
+          assert.equal(el.els.actionButton.getAttribute('data-l10n-id'),
+            'gaia-header-menu');
           return accessibility.check(this.dom);
         })
         .then(() => {

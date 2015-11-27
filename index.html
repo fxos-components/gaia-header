@@ -5,9 +5,13 @@
   <title>Header Demo</title>
   <meta name="description" content="Demo app for Custom Element based headers">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="defaultLanguage" content="en-US">
+  <meta name="availableLanguages" content="en-US">
   <link rel="stylesheet" type="text/css" href="bower_components/base/base.css">
   <link rel="stylesheet" type="text/css" href="bower_components/gaia-theme/gaia-theme.css">
   <link rel="stylesheet" type="text/css" href="bower_components/gaia-fonts/style.css">
+  <link rel="localization" href="locales/gaia-header.{locale}.properties">
+  <script src="bower_components/l20n/dist/compat/web/l20n.js"></script>
   <script src="bower_components/gaia-theme/lib/gaia-theme-selector.js"></script>
   <script src="bower_components/gaia-icons/gaia-icons.js"></script>
   <script src="bower_components/gaia-component/gaia-component.js"></script>
@@ -87,7 +91,6 @@
   </gaia-header>
 
   <gaia-header action="close">
-    <span l10n-action data-l10n-id="foo" title="Foo">Foo</span>
     <h1>Localized action button</h1>
     <a href="#">Custom</a>
   </gaia-header>

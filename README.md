@@ -54,17 +54,6 @@ Prevents font-fit logic from running. Will run when the attribute is removed. Yo
 
 Force the older behavior of gaia-header, where the whole header is always displayed in LTR mode.
 
-### Localization
-
-If choosing to use the built in action-button you may wish to localize the content within. You can do this by providing a special `l10n-action` child node. This node will be 'distributed' inside the action-button acting as `textContent` for screen-readers.
-
-```html
-<gaia-header action="back">
-  <span l10n-action aria-label="Back">Localized text</span>
-  <h1>title</h1>
-</gaia-header>
-```
-
 ## Tests
 
 1. Ensure Firefox Nightly is installed on your machine.
