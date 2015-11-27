@@ -130,6 +130,7 @@ module.exports = component.register('gaia-header', {
     debug('attached');
     this.runFontFitSoon();
     this.observerStart();
+    this.setupShadowL10n();
     window.addEventListener('resize', this.onResize);
   },
 
@@ -596,8 +597,17 @@ module.exports = component.register('gaia-header', {
       set: function(value) {
         var action = KNOWN_ACTIONS[value];
         if (action === this._action) { return; }
-        this.setAttr('action', action);
         this._action = action;
+        if (action) {
+          this.setAttr('action', action);
+          this.els.actionButton.setAttribute('data-l10n-id',
+            'gaia-header-' + action);
+        } else {
+          this.removeAttr('action');
+          this.els.actionButton.removeAttribute('data-l10n-id');
+          this.els.actionButton.removeAttribute('aria-label');
+        }
+        this.localizeShadow(this.shadowRoot);
       }
     },
 
@@ -671,9 +681,7 @@ module.exports = component.register('gaia-header', {
   },
 
   template: `<div class="inner">
-    <button class="action-button">
-      <content select="[l10n-action]"></content>
-    </button>
+    <button class="action-button"></button>
     <content></content>
   </div>
 
@@ -793,33 +801,6 @@ module.exports = component.register('gaia-header', {
 
   .action-button:before {
     display: block;
-  }
-
-  /** Action Button Text
-   ---------------------------------------------------------*/
-
-  /**
-   * To provide custom localized content for
-   * the action-button, we allow the user
-   * to provide an element with the class
-   * .l10n-action. This node is then
-   * pulled inside the real action-button.
-   *
-   * Example:
-   *
-   *   <gaia-header action="back">
-   *     <span l10n-action aria-label="Back">Localized text</span>
-   *     <h1>title</h1>
-   *   </gaia-header>
-   */
-
-  ::content [l10n-action] {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    font-size: 0;
   }
 
   /** Title
@@ -992,15 +973,11 @@ module.exports = component.register('gaia-header', {
  * Determines whether passed element
  * contributes to the layout in gaia-header.
  *
- * Children with `[l10n-action]` get distributed
- * inside the action-button so don't occupy
- * space before the `<h1>`.
- *
  * @param  {Element}  el
  * @return {Boolean}
  */
 function contributesToLayout(el) {
-  return el.localName !== 'style' && !el.hasAttribute('l10n-action');
+  return el.localName !== 'style';
 }
 
 /**
